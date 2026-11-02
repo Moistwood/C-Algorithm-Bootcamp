@@ -74,7 +74,7 @@ def compiler_version():
         r = subprocess.run([GXX, '--version'], capture_output=True, text=True,
                            timeout=15, encoding='utf-8', errors='replace')
         first = (r.stdout or '').splitlines()[0] if r.stdout else 'g++'
-        return first.strip()
+        return first.strip().replace('g++.exe', 'g++')
     except Exception:
         return 'g++'
 
