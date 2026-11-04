@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -39,7 +40,10 @@ class Settings(BaseSettings):
     db_echo: bool = False
 
     # ---------- 安全 ----------
-    secret_key: str = "dev-only-change-me-in-production-0123456789abcdef"
+    # 留空则首次启动自动生成随机密钥，存到 runtime/secret.key。
+    # 不要写死默认值：仓库是公开的，写死的密钥等于没有密钥，
+    # 任何人拿代码就能伪造管理员 token。
+    secret_key: str = ""
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7      # 7 天
     refresh_token_expire_minutes: int = 60 * 24 * 30   # 30 天
@@ -54,6 +58,10 @@ class Settings(BaseSettings):
     judge_max_concurrent: int = 2            # 同时编译运行的提交数
     judge_cpp_standard: str = "c++14"
     judge_optimize: str = "-O2"
+
+    # 提交频率限制：同一用户两次提交的最小间隔，以及每分钟上限
+    judge_submit_interval: float = 3.0
+    judge_submit_per_minute: int = 12
 
     # 编译器路径，留空则自动探测
     gpp_path: str = ""
@@ -80,7 +88,38 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-    return Settings()
+    s = Settings()
+    s.secret_key = _resolve_secret_key(s.secret_key)
+    return s
+
+
+def _resolve_secret_key(configured: str) -> str:
+    """拿到签名密钥：环境变量优先，否则读/生成 runtime 下的密钥文件。
+
+    持久化到文件是为了重启后已发出的 token 不失效；文件权限尽量收紧，
+    并且 runtime/ 已在 .gitignore 里，不会被提交。
+    """
+    key = (configured or "").strip()
+    if key:
+        return key
+
+    key_file = RUNTIME_DIR / "secret.key"
+    if key_file.is_file():
+        try:
+            saved = key_file.read_text(encoding="utf-8").strip()
+            if saved:
+                return saved
+        except OSError:
+            pass
+
+    key = secrets.token_urlsafe(48)
+    try:
+        key_file.write_text(key, encoding="utf-8")
+        os.chmod(key_file, 0o600)
+    except OSError:
+        # 磁盘不可写时至少保证本次进程有随机密钥，不至于退回公开默认值
+        pass
+    return key
 
 
 settings = get_settings()

@@ -168,14 +168,18 @@ GET    /api/stats/heatmap          提交热力图
 
 ## 部署到公网
 
-默认配置是本地开发用的，上线前必须改两处：
+默认配置是本地开发用的，上线前有两件事要注意：
 
-1. **换掉 JWT 密钥**（`ALGO_SECRET_KEY`），否则别人能伪造 token
+1. **JWT 密钥**：不配置也不会裸奔——首次启动会自动生成随机密钥存到
+   `runtime/secret.key`，重启后沿用。多实例部署时需要让它们共用一个值：
    ```bash
    python -c "import secrets; print(secrets.token_urlsafe(48))"
+   # 写进 .env 的 ALGO_SECRET_KEY
    ```
 2. **关闭评测或加访问控制**。任意用户能提交代码并被编译执行，
    单人本地用没问题，开放给公网就要考虑隔离（Docker 容器 / nsjail）。
+   提交接口默认有频率限制（`ALGO_JUDGE_SUBMIT_INTERVAL`、
+   `ALGO_JUDGE_SUBMIT_PER_MINUTE`），多实例部署要把计数换成 Redis。
 
 复制 `.env.example` 为 `.env` 后修改。换 PostgreSQL：
 

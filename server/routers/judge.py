@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import threading
+import time
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 
@@ -27,6 +30,48 @@ from ..services import judge as engine
 from ..services import runner
 
 router = APIRouter(prefix="/api/judge", tags=["在线评测"])
+
+
+# ---------------------------------------------------------------------
+# 提交频率限制
+#
+# 判题要编译、要起进程，是全站最贵的接口。不限流的话，一个人按住回车
+# 就能把 worker 队列塞满，其他人全部排队。这里用进程内计数，够单机用；
+# 多实例部署要换成 Redis 计数。
+# ---------------------------------------------------------------------
+
+_rate_lock = threading.Lock()
+_rate_history: dict[int, list[float]] = {}
+
+
+def _check_submit_rate(user_id: int, interval: float | None = None, limit: int | None = None) -> None:
+    """同一用户：两次调用间隔不少于 N 秒，每分钟不超过 M 次。"""
+    now = time.time()
+    interval = max(0.0, settings.judge_submit_interval if interval is None else interval)
+    limit = max(1, settings.judge_submit_per_minute if limit is None else limit)
+
+    with _rate_lock:
+        hist = [t for t in _rate_history.get(user_id, []) if now - t < 60]
+        if hist and interval and now - hist[-1] < interval:
+            wait = int(interval - (now - hist[-1])) + 1
+            raise HTTPException(
+                status_code=429,
+                detail="提交太快了，请 %d 秒后再试" % wait,
+                headers={"Retry-After": str(wait)},
+            )
+        if len(hist) >= limit:
+            raise HTTPException(
+                status_code=429,
+                detail="一分钟内提交了 %d 次，先歇一会儿" % limit,
+                headers={"Retry-After": "60"},
+            )
+        hist.append(now)
+        _rate_history[user_id] = hist
+
+        # 顺手清理长期不活跃的用户，避免字典无限膨胀
+        if len(_rate_history) > 5000:
+            for uid in [k for k, v in _rate_history.items() if not v or now - v[-1] > 300]:
+                _rate_history.pop(uid, None)
 
 
 @router.get("/info", response_model=JudgeInfoOut, summary="评测机状态")
@@ -52,6 +97,9 @@ def run_code(payload: RunIn, user: CurrentUser) -> RunOut:
     if not settings.judge_enabled:
         raise HTTPException(status_code=503, detail="评测功能已关闭")
 
+    # 自由运行不落库，但同样吃 CPU，限流放得宽松一些
+    _check_submit_rate(user.id, interval=1.0, limit=30)
+
     limit = max(200, min(payload.time_limit, 10_000))
     result = engine.run_once(payload.code, payload.stdin, limit)
     return RunOut(**result)
@@ -61,6 +109,8 @@ def run_code(payload: RunIn, user: CurrentUser) -> RunOut:
 def submit(payload: SubmitIn, request: Request, db: DbSession, user: CurrentUser) -> SubmissionOut:
     if not settings.judge_enabled:
         raise HTTPException(status_code=503, detail="评测功能已关闭")
+
+    _check_submit_rate(user.id)
 
     problem = db.get(Problem, payload.problem_id)
     if not problem or not problem.is_published:

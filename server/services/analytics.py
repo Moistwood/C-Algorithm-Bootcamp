@@ -253,6 +253,26 @@ def compute_daily(db: Session, user: User, days: int = 30) -> list[DailyPointOut
         .order_by(DailyStat.stat_date)
     ).all()
 
+    # 「当天解决了多少题」按提交记录重新算，不用 daily_stats.problems_solved。
+    # 后者是判题时累加的，两条提交同时通过同一道题时，都会认为自己才是
+    # 首次通过，于是各加一次，数字会虚高。这里取每题最早一次 AC 的日期，
+    # 天生幂等，重复点几次也不会变。
+    first_pass: dict[int, date] = {}
+    for problem_id, judged_at in db.execute(
+        select(Submission.problem_id, Submission.judged_at).where(
+            Submission.user_id == user.id,
+            Submission.status == "accepted",
+            Submission.judged_at.is_not(None),
+        )
+    ):
+        day = judged_at.date()
+        if problem_id not in first_pass or day < first_pass[problem_id]:
+            first_pass[problem_id] = day
+
+    solved_by_day: dict[date, int] = {}
+    for day in first_pass.values():
+        solved_by_day[day] = solved_by_day.get(day, 0) + 1
+
     by_date = {r.stat_date: r for r in rows}
     out: list[DailyPointOut] = []
     cursor = since
@@ -265,7 +285,7 @@ def compute_daily(db: Session, user: User, days: int = 30) -> list[DailyPointOut
                 submissions=r.submissions if r else 0,
                 accepted=r.accepted if r else 0,
                 minutes=r.minutes_spent if r else 0,
-                problems_solved=r.problems_solved if r else 0,
+                problems_solved=solved_by_day.get(cursor, 0),
             )
         )
         cursor += timedelta(days=1)
