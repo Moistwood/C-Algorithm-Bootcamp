@@ -67,9 +67,10 @@ def tips(db: DbSession, user: CurrentUser) -> list[dict]:
 def dashboard(db: DbSession, user: CurrentUser) -> dict:
     """一次请求拿齐个人中心需要的所有数据，减少前端串行等待。"""
     ov = analytics.compute_overview(db, user)
+    skills_data = analytics.compute_skills(db, user)
     return {
         "overview": ov.model_dump(),
-        "skills": [s.model_dump() for s in analytics.compute_skills(db, user)],
+        "skills": [s.model_dump() for s in skills_data],
         "daily": [d.model_dump() for d in analytics.compute_daily(db, user, 30)],
-        "tips": analytics.diagnose(analytics.compute_skills(db, user), ov),
+        "tips": analytics.diagnose(skills_data, ov),
     }

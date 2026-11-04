@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     judge_default_time_limit: int = 2000     # 毫秒
     judge_max_output: int = 512 * 1024       # 单次输出上限 512KB
     judge_max_concurrent: int = 2            # 同时编译运行的提交数
+    judge_default_memory_limit: int = 256    # 默认内存上限（MB），沙箱强制执行
     judge_cpp_standard: str = "c++14"
     judge_optimize: str = "-O2"
 

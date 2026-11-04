@@ -50,8 +50,8 @@
       手写 SVG 图表（雷达图 / 折线图 / 热力图 / 条形图）
 后端  FastAPI + SQLAlchemy 2.1 + Pydantic 2
 数据库 SQLite（默认，零配置）/ PostgreSQL / MySQL 均可切换
-认证  JWT + bcrypt，登录失败 5 次锁定 10 分钟
-评测  subprocess 隔离 + 落库队列 + 并发信号量
+认证  JWT（PyJWT）+ bcrypt，登录失败 5 次锁定 10 分钟
+评测  进程沙箱（Job Object / ulimit：内存上限 + 超时杀整棵进程树）+ 落库队列 + 并发信号量
 ```
 
 没有用 React/Vue，没有用 Celery/Redis。理由：这个项目要让朋友 clone 下来只装一个 Python 依赖就能跑全流程。代码组织上该分层的地方照样分层（router / service / model 三层）。
@@ -127,7 +127,7 @@ python setup-toolchain.py
 │   ├── seed.py             从 content.json 导入种子数据
 │   ├── content.json        章节与题目的结构化数据
 │   ├── routers/            auth / content / judge / progress / stats / comments / users / admin
-│   └── services/           judge（编译运行）/ runner（队列）/ analytics（掌握度算法）
+│   └── services/           judge（编译运行）/ sandbox（资源限制）/ runner（队列）/ analytics（掌握度算法）
 ├── data/                   原始内容数据（前端离线模式直接读取）
 ├── tools/export_content.js data/*.js → server/content.json
 └── 启动.bat / run.sh
@@ -189,8 +189,10 @@ GET    /api/stats/heatmap          提交热力图
    python -c "import secrets; print(secrets.token_urlsafe(48))"
    # 写进 .env 的 ALGO_SECRET_KEY
    ```
-2. **关闭评测或加访问控制**。任意用户能提交代码并被编译执行，
-   单人本地用没问题，开放给公网就要考虑隔离（Docker 容器 / nsjail）。
+2. **关闭评测或加访问控制**。任意用户能提交代码并被编译执行。
+   评测本身已经有进程级沙箱（内存上限、超时杀整棵进程树、独立临时目录），
+   但它是"防误伤"不是"防恶意"：没有文件系统隔离，也不限制系统调用。
+   开放给公网建议再套一层容器（Docker / nsjail）。
    提交接口默认有频率限制（`ALGO_JUDGE_SUBMIT_INTERVAL`、
    `ALGO_JUDGE_SUBMIT_PER_MINUTE`），多实例部署要把计数换成 Redis。
 

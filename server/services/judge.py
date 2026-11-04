@@ -4,8 +4,10 @@
 --------
 1. **编译器自动探测**：优先用仓库自带的 toolchain/w64devkit，其次查 PATH
    和 Dev-C++、CodeBlocks、MSYS2 等常见安装位置，免去手工配环境。
-2. **资源隔离**：每个提交独立临时目录；运行超时直接 kill；stdout/stderr
-   重定向到文件而不是管道，避免死循环程序把内存写爆。
+2. **资源隔离**：每个提交独立临时目录；超时杀整棵进程树（学生代码用
+   system() 拉起的子进程也跑不掉）；内存上限由 Job Object / ulimit
+   强制执行，超限判 MLE；stdout/stderr 重定向到文件而不是管道，
+   避免死循环程序把内存写爆。
 3. **输出截断**：单文件读取上限 512KB，超过直接判 OUTPUT_LIMIT。
 4. **判定口径**：与主流 OJ 一致，按测试点给分，取最低状态作为总状态。
 5. **并发控制**：用信号量限制同时编译运行的提交数，防止机器被压死。
@@ -26,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import BASE_DIR, settings
+from .sandbox import Sandbox
 
 # 同时最多跑几个编译任务
 _semaphore = threading.BoundedSemaphore(max(1, settings.judge_max_concurrent))
@@ -233,11 +236,15 @@ def run_executable(
     stdin_data: str,
     time_limit_ms: int,
     workdir: Path,
+    memory_limit_mb: int | None = None,
 ) -> dict:
-    """运行一个可执行文件，返回状态、输出、耗时。
+    """运行一个可执行文件，返回状态、输出、耗时与峰值内存。
 
     输出写文件而不是 PIPE：死循环程序会持续输出，
     用 PIPE + capture_output 会把内存吃光。
+
+    资源约束通过 Sandbox 实现（见 sandbox.py）：
+    超时杀整棵进程树，内存超限直接判 MLE，峰值内存供前端展示。
     """
     out_path = workdir / "stdout.txt"
     err_path = workdir / "stderr.txt"
@@ -245,26 +252,26 @@ def run_executable(
     in_path.write_text(stdin_data or "", encoding="utf-8", newline="\n")
 
     timeout_s = max(0.2, time_limit_ms / 1000.0)
+    mem_limit = memory_limit_mb or settings.judge_default_memory_limit
 
     t0 = time.perf_counter()
     status = "accepted"
     exit_code = 0
     timed_out = False
+    peak_kb = 0
 
-    with open(in_path, "rb") as fin, open(out_path, "wb") as fout, open(err_path, "wb") as ferr:
+    with Sandbox(memory_limit_mb=mem_limit) as box, \
+            open(in_path, "rb") as fin, open(out_path, "wb") as fout, open(err_path, "wb") as ferr:
+        cmd, popen_kwargs = box.popen_params(str(exe))
         try:
-            proc = subprocess.run(
-                [str(exe)],
+            proc = subprocess.Popen(
+                cmd,
                 stdin=fin,
                 stdout=fout,
                 stderr=ferr,
-                timeout=timeout_s,
                 cwd=str(workdir),
+                **popen_kwargs,
             )
-            exit_code = proc.returncode
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            exit_code = -1
         except Exception as exc:  # noqa: BLE001
             return {
                 "status": "system_error",
@@ -274,6 +281,20 @@ def run_executable(
                 "exit_code": -1,
                 "memory_kb": 0,
             }
+
+        box.attach(proc)
+        try:
+            proc.wait(timeout=timeout_s)
+            exit_code = proc.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            exit_code = -1
+            box.kill_tree(proc)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        peak_kb = box.peak_memory_kb()
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
@@ -286,7 +307,7 @@ def run_executable(
             "stderr": "",
             "time_ms": elapsed_ms,
             "exit_code": exit_code,
-            "memory_kb": 0,
+            "memory_kb": peak_kb,
             "message": "输出超过 %d KB，程序可能有死循环打印。" % (settings.judge_max_output // 1024),
         }
 
@@ -296,7 +317,11 @@ def run_executable(
     if timed_out:
         status = "time_limit"
     elif exit_code != 0:
-        status = "runtime_error"
+        # 贴着内存上限崩掉的（bad_alloc），按 MLE 而不是 RE 报
+        if box.memory_exceeded():
+            status = "memory_limit"
+        else:
+            status = "runtime_error"
 
     return {
         "status": status,
@@ -304,7 +329,7 @@ def run_executable(
         "stderr": stderr,
         "time_ms": elapsed_ms,
         "exit_code": exit_code,
-        "memory_kb": 0,
+        "memory_kb": peak_kb,
         "message": "",
     }
 

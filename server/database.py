@@ -44,6 +44,10 @@ def _build_engine():
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA foreign_keys=ON")
             cur.execute("PRAGMA synchronous=NORMAL")
+            # API 线程和评测 worker 同时写库时，拿不到写锁的连接默认
+            # 立刻报 database is locked。改为等 5 秒再失败，
+            # 短暂的写冲突就都能自动消化掉。
+            cur.execute("PRAGMA busy_timeout=5000")
             cur.close()
 
     return eng

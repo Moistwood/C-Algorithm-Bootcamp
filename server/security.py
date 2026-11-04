@@ -15,7 +15,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt as pyjwt
+from jwt.exceptions import InvalidTokenError
 
 from .config import settings
 
@@ -109,7 +110,7 @@ def create_access_token(subject: str | int, extra: dict[str, Any] | None = None)
     }
     if extra:
         payload.update(extra)
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return pyjwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 def create_refresh_token(subject: str | int) -> str:
@@ -119,14 +120,18 @@ def create_refresh_token(subject: str | int) -> str:
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=settings.refresh_token_expire_minutes),
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return pyjwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 def decode_token(token: str, expected_type: str = "access") -> dict[str, Any] | None:
-    """解码并校验 token。校验失败一律返回 None，不抛异常给上层。"""
+    """解码并校验 token。校验失败一律返回 None，不抛异常给上层。
+
+    PyJWT 会自动校验 exp（过期抛 ExpiredSignatureError）；
+    算法白名单必须显式传，防止算法混淆攻击。
+    """
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-    except JWTError:
+        payload = pyjwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except InvalidTokenError:
         return None
     if payload.get("typ") != expected_type:
         return None

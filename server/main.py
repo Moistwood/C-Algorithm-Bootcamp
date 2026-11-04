@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -38,6 +39,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("algo")
+
+# 进程启动时刻，健康检查里的运行时长用它算
+_STARTED_AT = time.time()
 
 
 @asynccontextmanager
@@ -134,11 +138,32 @@ for r in (auth.router, content.router, judge.router, progress.router,
 
 @app.get("/api/health", tags=["系统"], summary="健康检查")
 def health() -> dict:
+    """健康检查：能过来看一眼就知道哪一层出了问题。
+
+    db.ok 探活失败说明 SQLite 文件被锁死或磁盘满了；
+    judge.enabled 为 False 是没装编译器；
+    queue 持续变大说明 worker 挂了或者评测队列堵了。
+    """
     info = engine.compiler_info()
+
+    db_ok = False
+    try:
+        from sqlalchemy import text
+
+        from .database import session_scope
+
+        with session_scope() as db:
+            db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:  # noqa: BLE001
+        logger.exception("健康检查：数据库探活失败")
+
     return {
-        "ok": True,
+        "ok": db_ok,
         "app": settings.app_name,
         "version": settings.app_version,
+        "uptime_seconds": int(time.time() - _STARTED_AT),
+        "db": {"ok": db_ok},
         "judge": {
             "enabled": settings.judge_enabled and info["available"],
             "compiler": info["version"],

@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title 蓝桥杯 C++ 省一特训 - 本地评测服务
+title C++ 算法竞赛特训 - 在线评测服务
 cd /d "%~dp0"
 
 set "PY="
@@ -21,5 +21,5 @@ if not defined PY (
     exit /b 1
 )
 
-%PY% judge.py
+%PY% -m server.main
 pause

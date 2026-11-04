@@ -166,63 +166,82 @@ def compute_streak(db: Session, user_id: int) -> int:
 
 
 def compute_skills(db: Session, user: User) -> list[StageSkillOut]:
-    stages = db.scalars(select(Stage).order_by(Stage.order_no)).all()
-    out: list[StageSkillOut] = []
+    """各阶段掌握度。
 
+    早期实现是「每个阶段循环查 5 次」，7 个阶段就是 35 条 SQL。
+    掌握度又是 /api/stats/tips 和 /dashboard 每次都要算的，属于热点
+    路径。现在改为每个维度一条 GROUP BY，固定 6 条 SQL 拿齐全部数据。
+    """
+    stages = db.scalars(select(Stage).order_by(Stage.order_no)).all()
+    if not stages:
+        return []
+
+    chapter_total = dict(db.execute(
+        select(Chapter.stage_code, func.count(Chapter.id))
+        .where(Chapter.is_published.is_(True))
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    chapters_done = dict(db.execute(
+        select(Chapter.stage_code, func.count(Progress.id))
+        .join(Progress, Progress.chapter_id == Chapter.id)
+        .where(Progress.user_id == user.id, Progress.status == "done")
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    quiz_total = dict(db.execute(
+        select(Chapter.stage_code, func.count(QuizAttempt.id))
+        .join(Chapter, QuizAttempt.chapter_id == Chapter.id)
+        .where(Chapter.is_published.is_(True), QuizAttempt.user_id == user.id)
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    quiz_correct = dict(db.execute(
+        select(Chapter.stage_code, func.count(QuizAttempt.id))
+        .join(Chapter, QuizAttempt.chapter_id == Chapter.id)
+        .where(
+            Chapter.is_published.is_(True),
+            QuizAttempt.user_id == user.id,
+            QuizAttempt.is_correct.is_(True),
+        )
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    prob_total = dict(db.execute(
+        select(Chapter.stage_code, func.count(Problem.id))
+        .join(Problem, Problem.ref_chapter == Chapter.id)
+        .where(Chapter.is_published.is_(True), Problem.is_published.is_(True))
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    prob_solved = dict(db.execute(
+        select(Chapter.stage_code, func.count(func.distinct(Submission.problem_id)))
+        .join(Problem, Submission.problem_id == Problem.id)
+        .join(Chapter, Problem.ref_chapter == Chapter.id)
+        .where(
+            Chapter.is_published.is_(True),
+            Problem.is_published.is_(True),
+            Submission.user_id == user.id,
+            Submission.status == "accepted",
+        )
+        .group_by(Chapter.stage_code)
+    ).all())
+
+    out: list[StageSkillOut] = []
     for st in stages:
-        ch_ids = [
-            cid
-            for (cid,) in db.execute(
-                select(Chapter.id).where(Chapter.stage_code == st.code, Chapter.is_published.is_(True))
-            ).all()
-        ]
-        total = len(ch_ids)
+        total = chapter_total.get(st.code, 0)
         if not total:
             continue
 
-        done = 0
-        if ch_ids:
-            done = db.scalar(
-                select(func.count(Progress.id)).where(
-                    Progress.user_id == user.id,
-                    Progress.chapter_id.in_(ch_ids),
-                    Progress.status == "done",
-                )
-            ) or 0
-
-        quiz_total = db.scalar(
-            select(func.count(QuizAttempt.id)).where(
-                QuizAttempt.user_id == user.id, QuizAttempt.chapter_id.in_(ch_ids)
-            )
-        ) or 0
-        quiz_correct = db.scalar(
-            select(func.count(QuizAttempt.id)).where(
-                QuizAttempt.user_id == user.id,
-                QuizAttempt.chapter_id.in_(ch_ids),
-                QuizAttempt.is_correct.is_(True),
-            )
-        ) or 0
-
-        prob_ids = [
-            pid
-            for (pid,) in db.execute(
-                select(Problem.id).where(Problem.ref_chapter.in_(ch_ids), Problem.is_published.is_(True))
-            ).all()
-        ] if ch_ids else []
-        prob_total = len(prob_ids)
-        prob_solved = 0
-        if prob_ids:
-            prob_solved = db.scalar(
-                select(func.count(func.distinct(Submission.problem_id))).where(
-                    Submission.user_id == user.id,
-                    Submission.problem_id.in_(prob_ids),
-                    Submission.status == "accepted",
-                )
-            ) or 0
+        done = chapters_done.get(st.code, 0)
+        q_total = quiz_total.get(st.code, 0)
+        q_correct = quiz_correct.get(st.code, 0)
+        p_total = prob_total.get(st.code, 0)
+        p_solved = prob_solved.get(st.code, 0)
 
         chapter_rate = done / total if total else 0.0
-        quiz_rate = quiz_correct / quiz_total if quiz_total else 0.0
-        prob_rate = prob_solved / prob_total if prob_total else 0.0
+        quiz_rate = q_correct / q_total if q_total else 0.0
+        prob_rate = p_solved / p_total if p_total else 0.0
 
         score = chapter_rate * 40 + quiz_rate * 40 + prob_rate * 20
 
@@ -378,7 +397,11 @@ def compute_ranking(db: Session, limit: int = 20) -> list[RankingItemOut]:
 
 
 def compute_wrong_questions(db: Session, user: User, limit: int = 50) -> list[WrongQuestionOut]:
-    """有提交但从未通过的题目，按最近提交时间倒序。"""
+    """有提交但从未通过的题目，按最近提交时间倒序。
+
+    早期实现每道题再查一次「最近一次提交」，错题一多就是 N+1。
+    现在把 max(id) 并进主查询，再按 id 批量取，固定两条 SQL。
+    """
     accepted_ids = select(Submission.problem_id).where(
         Submission.user_id == user.id, Submission.status == "accepted"
     )
@@ -388,6 +411,7 @@ def compute_wrong_questions(db: Session, user: User, limit: int = 50) -> list[Wr
             Submission.problem_id,
             func.count(Submission.id).label("attempts"),
             func.max(Submission.created_at).label("last_at"),
+            func.max(Submission.id).label("last_id"),
         )
         .where(Submission.user_id == user.id, Submission.problem_id.notin_(accepted_ids))
         .group_by(Submission.problem_id)
@@ -400,18 +424,19 @@ def compute_wrong_questions(db: Session, user: User, limit: int = 50) -> list[Wr
 
     pids = [r[0] for r in rows]
     problems = {p.id: p for p in db.scalars(select(Problem).where(Problem.id.in_(pids))).all()}
+    last_subs = {
+        s.problem_id: s
+        for s in db.scalars(
+            select(Submission).where(Submission.id.in_([r[3] for r in rows]))
+        ).all()
+    }
 
     out: list[WrongQuestionOut] = []
-    for pid, attempts, last_at in rows:
+    for pid, attempts, last_at, _last_id in rows:
         p = problems.get(pid)
         if not p:
             continue
-        last_sub = db.scalar(
-            select(Submission)
-            .where(Submission.user_id == user.id, Submission.problem_id == pid)
-            .order_by(Submission.id.desc())
-            .limit(1)
-        )
+        last_sub = last_subs.get(pid)
         out.append(
             WrongQuestionOut(
                 problem_id=pid,

@@ -138,6 +138,7 @@ def judge_submission(submission_id: int) -> str:
 
             total_score = 0
             worst_ms = 0
+            worst_mem_kb = 0
             statuses: list[str] = []
             first_fail_hint = ""
 
@@ -147,6 +148,7 @@ def judge_submission(submission_id: int) -> str:
                     case.input_data,
                     problem.time_limit or engine.settings.judge_default_time_limit,
                     workdir,
+                    memory_limit_mb=problem.memory_limit or engine.settings.judge_default_memory_limit,
                 )
 
                 st = result["status"]
@@ -156,6 +158,7 @@ def judge_submission(submission_id: int) -> str:
 
                 statuses.append(st)
                 worst_ms = max(worst_ms, result["time_ms"])
+                worst_mem_kb = max(worst_mem_kb, result.get("memory_kb", 0))
 
                 got = case.score if st == "accepted" else 0
                 total_score += got
@@ -187,6 +190,7 @@ def judge_submission(submission_id: int) -> str:
             sub.status = final_status
             sub.score = total_score
             sub.time_ms = worst_ms
+            sub.memory_kb = worst_mem_kb
             sub.judged_at = engine.now_utc()
             sub.judge_time_ms = int((time.perf_counter() - started) * 1000)
             sub.judge_message = (

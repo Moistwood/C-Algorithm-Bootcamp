@@ -7,8 +7,8 @@ uvicorn[standard]>=0.27
 sqlalchemy>=2.0
 pydantic>=2.6
 pydantic-settings>=2.2
-python-jose[cryptography]>=3.3
-passlib[bcrypt]>=1.7
+# JWT：用维护中的 PyJWT，python-jose 已停止维护且有已知 CVE
+pyjwt>=2.8
 bcrypt>=4.1
 python-multipart>=0.0.9
 email-validator>=2.1
