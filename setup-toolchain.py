@@ -53,7 +53,7 @@ def download(url, dest):
 
 def main():
     print('=' * 56)
-    print('  蓝桥杯 C++ 省一特训 · 工具链准备')
+    print('  C++ 算法竞赛特训 · 工具链准备')
     print('=' * 56)
 
     if os.path.isfile(GXX):

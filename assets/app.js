@@ -1,5 +1,5 @@
 /* ==========================================================
-   蓝桥杯 C++ 省一特训 · 渲染引擎
+   C++ 算法竞赛特训 · 渲染引擎
    ========================================================== */
 (function () {
   'use strict';
@@ -9,11 +9,11 @@
     { n: 1, num: 'STAGE 01', name: 'C++ 语言基础',
       desc: '从编译运行到 STL，把写代码这件事变成肌肉记忆。没有这一层，后面全是空中楼阁。' },
     { n: 2, num: 'STAGE 02', name: '算法基础工具',
-      desc: '复杂度、枚举、二分、前缀和、双指针、贪心、高精度、位运算 —— 省赛一半的分在这里。' },
+      desc: '复杂度、枚举、二分、前缀和、双指针、贪心、高精度、位运算 —— 竞赛一半的分在这里。' },
     { n: 3, num: 'STAGE 03', name: '核心数据结构',
       desc: '栈队列、单调结构、并查集、堆、哈希、树状数组、线段树。' },
     { n: 4, num: 'STAGE 04', name: '图论',
-      desc: '建图、遍历、拓扑、最短路、最小生成树、连通性。蓝桥杯压轴常客。' },
+      desc: '建图、遍历、拓扑、最短路、最小生成树、连通性。竞赛压轴常客。' },
     { n: 5, num: 'STAGE 05', name: '动态规划',
       desc: '从状态定义到转移方程，六大 DP 模型全覆盖。' },
     { n: 6, num: 'STAGE 06', name: '数学与数论',
@@ -353,9 +353,7 @@
         '<div style="padding:6px 10px 4px;font-size:12px;color:var(--text-mute);line-height:1.75">' +
           '在右侧写代码，点「运行」直接编译执行。' +
           '<br><span style="color:var(--text-dim)">Ctrl + Enter</span> 快捷运行。' +
-          '<br><br>需要先双击站点根目录的' +
-          '<br><b style="color:var(--amber)">启动评测服务.bat</b>' +
-          '<br><br>编译器版本 <b style="color:var(--text-dim)">g++ -std=c++14 -O2</b>，与蓝桥杯考场一致。' +
+          '<br><br>编译器版本 <b style="color:var(--text-dim)">g++ -std=c++14 -O2</b>，与主流竞赛考场一致。' +
         '</div>' +
         '<div class="stage-title">模板</div>' +
         '<div style="padding:6px 10px 4px;font-size:12px;color:var(--text-mute);line-height:1.75">' +
@@ -476,7 +474,7 @@
 
     var h = '<div class="wrap wide">';
     h += '<div class="hero">' +
-      '<h1>从零到省一，一条不打折的路</h1>' +
+      '<h1>从入门到拿奖，一条不打折的路</h1>' +
       '<p>按顺序学完 ' + CHAPTERS.length + ' 个知识点专题，再进入 ' + PROBLEMS.length +
       ' 道配套题目。每节都有可编译代码、易错点、自测题。学完不是目的，能默写模板才是。</p>' +
     '</div>';
@@ -509,21 +507,23 @@
 
     h += '<h2>怎么用这个站</h2>' + md(
       '1. **按编号顺序学**，不要跳。前面的数组、函数、STL 是后面所有算法的地基。\n' +
-      '2. 每节的代码**自己敲一遍并编译运行**，看懂了不等于会写，蓝桥杯是闭卷手写。\n' +
+      '2. 每节的代码**自己敲一遍并编译运行**，看懂了不等于会写，比赛都是闭卷手写。\n' +
       '3. 每节末尾的自测题必须答对才能标"已学完"——答错说明那一节白学了。\n' +
       '4. 学完一个阶段再去题库做对应分组的题，做不出来说明知识点没进脑子，回去重看。\n' +
-      '5. 最后的《考场模板与代码库》要背到能默写，省赛 4 小时里没时间现推。'
+      '5. 最后的《考场模板与代码库》要背到能默写，场上那几个小时没时间现推。'
     );
 
     h += '<div class="note tip"><div class="note-icon">✓</div><div class="note-body">' +
-      '<p><strong>代码可以直接跑。</strong>站点自带本地评测：双击目录里的 <b>启动评测服务.bat</b>，' +
-      '然后在「代码运行」里写代码，或直接在某道题下面点「测样例」。' +
+      '<p><strong>代码可以直接跑。</strong>站点自带真实评测：在「代码运行」里写代码，' +
+      '或直接在题目页点「运行」看样例、点「提交评测」判分。' +
       '用的是真实的 <code class="inline">g++ -std=c++14 -O2</code>，不是模拟执行。</p></div></div>';
 
     h += '<div class="note info"><div class="note-icon">i</div><div class="note-body">' +
-      '<p><strong>关于赛制：</strong>第 17 届起蓝桥杯改为 <strong>2 道填空 + 6 道编程，满分 100 分，时长 4 小时</strong>。' +
-      '省一通常需要拿到 60 分以上（各省略有浮动）。填空题不要求通用解法，能算出答案就行，' +
-      '这意味着 <strong>Excel / Python / 暴力枚举</strong> 都是合法工具。</p></div></div>';
+      '<p><strong>关于赛制：</strong>常见的 C++ 算法竞赛——蓝桥杯、ACM/ICPC 校赛、CCPC、天梯赛——' +
+      '规则各不相同，但考的核心能力是同一套：<strong>读题、建模、写对、写快</strong>。' +
+      '以蓝桥杯为例，第 17 届起是 <strong>2 道填空 + 6 道编程，满分 100 分，时长 4 小时</strong>，' +
+      '填空题不要求通用解法，能算出答案就行，<strong>Excel / Python / 暴力枚举</strong> 都是合法工具。' +
+      '换到 ACM 赛制，则是三人一队、实时榜单、按过题数排名——练的东西照样管用。</p></div></div>';
 
     h += '</div>';
     el('content').innerHTML = h;
@@ -718,7 +718,7 @@
 
     var h = '<div class="wrap">';
     h += '<div class="hero"><h1>题目练习</h1>' +
-      '<p>按知识点分组，从模板题到省赛压轴。做不出来就回去重看对应章节。</p></div>';
+      '<p>按知识点分组，从模板题到竞赛压轴。做不出来就回去重看对应章节。</p></div>';
 
     var groups = [];
     PROBLEMS.forEach(function (p) { if (groups.indexOf(p.g) < 0) groups.push(p.g); });

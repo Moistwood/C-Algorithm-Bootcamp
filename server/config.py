@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
 
     # ---------- 基本信息 ----------
-    app_name: str = "蓝桥杯算法学习与在线评测系统"
+    app_name: str = "C++ 算法竞赛特训与在线评测系统"
     app_version: str = "2.0.0"
     debug: bool = True
 

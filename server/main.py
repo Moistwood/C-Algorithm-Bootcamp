@@ -73,7 +73,7 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description=(
-        "蓝桥杯 C++ 算法学习与在线评测系统的后端服务。\n\n"
+        "C++ 算法竞赛特训与在线评测系统的后端服务。\n\n"
         "功能模块：用户认证、知识内容、在线评测、学习进度、统计分析、题解讨论、管理后台。"
     ),
     lifespan=lifespan,

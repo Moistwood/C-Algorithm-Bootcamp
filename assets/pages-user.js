@@ -74,7 +74,7 @@
     container.innerHTML =
       '<div class="wrap auth-wrap">' +
         '<div class="auth-side">' +
-          '<div class="auth-logo">蓝桥杯 C++ 省一特训</div>' +
+          '<div class="auth-logo">C++ 算法竞赛特训</div>' +
           '<h2 class="auth-h2">把 51 个专题<br>和 80 道题<br>串成一条路</h2>' +
           '<ul class="auth-points">' +
             '<li>学习进度云端同步，换设备接着学</li>' +
@@ -360,7 +360,7 @@
       var daily = dash.daily || [];
 
       var h = '<div class="hero"><h1>学习统计</h1>' +
-        '<p>数字不会骗人。完成度低、正确率低的地方，就是省赛会丢分的地方。</p></div>';
+        '<p>数字不会骗人。完成度低、正确率低的地方，就是比赛会丢分的地方。</p></div>';
 
       h += '<div class="stat-cards">' +
         card('累计学习', Math.round((ov.minutes_total || 0) / 60) + ' 小时', '') +
