@@ -1,0 +1,16 @@
+<!DOCTYPE html><meta charset="utf-8">
+<iframe id="f" src="/#/practice/1" style="width:1200px;height:1800px;border:0"></iframe>
+<script>
+localStorage.setItem('lqcpp_token_v2','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidHlwIjoiYWNjZXNzIiwiaWF0IjoxNzkzNzkxNDM3LCJleHAiOjE3OTQzOTYyMzcsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW4ifQ.l52htPqlb8HDHyvUVXtxjvK3VhDfvNoqlXcbCQXWqU8');
+location.hash = '#/practice/1';
+setTimeout(function(){
+  var d = document.getElementById('f').contentDocument;
+  var r = [];
+  r.push('submitBox=' + !!d.getElementById('submitBox'));
+  r.push('subBtn=' + (d.getElementById('subBtn') ? d.getElementById('subBtn').textContent.trim() : 'null'));
+  r.push('editor=' + !!d.getElementById('subCode'));
+  r.push('judgeHost=' + !!d.getElementById('judgeHost'));
+  r.push('collapse=' + d.querySelectorAll('.collapse').length);
+  document.title = r.join(' ; ');
+}, 6000);
+</script>

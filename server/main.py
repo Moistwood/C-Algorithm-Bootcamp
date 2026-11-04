@@ -265,6 +265,12 @@ def index_page():
     return JSONResponse({"ok": True, "message": "前端页面未找到，接口文档见 /api/docs"})
 
 
+@app.get("/index.html", include_in_schema=False)
+def index_page_alias():
+    """显式支持 /index.html，避免用户直接输入这个地址时 404。"""
+    return index_page()
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     p = BASE_DIR / "assets" / "favicon.ico"
