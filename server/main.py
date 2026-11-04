@@ -147,6 +147,63 @@ def health() -> dict:
     }
 
 
+# ---------------------------------------------------------------------
+# 兼容旧版前端的接口
+# 早期版本用独立的 judge.py 提供 /api/ping 与 /api/run，
+# 这里保留同名路由，前端 assets/judge.js 不用改也能跑。
+# ---------------------------------------------------------------------
+
+
+@app.get("/api/ping", tags=["系统"], summary="评测机探活（兼容旧版）")
+def legacy_ping() -> dict:
+    info = engine.compiler_info()
+    return {
+        "ok": bool(info["available"]),
+        "ready": bool(info["available"]),
+        "compiler": info["version"],
+        "path": info["path"],
+        "standard": settings.judge_cpp_standard,
+        "optimize": settings.judge_optimize,
+        "timeLimit": settings.judge_default_time_limit,
+        "version": settings.app_version,
+    }
+
+
+@app.post("/api/run", tags=["系统"], summary="自由运行（兼容旧版）")
+def legacy_run(payload: dict) -> dict:
+    """允许匿名调用，方便本地单人使用时不强制注册。
+
+    只要服务不暴露到公网就没有风险；要上线的话把 judge_enabled 关掉，
+    或者在前面加一层 Nginx 的访问控制。
+    """
+    from .services import judge as _engine
+
+    if not settings.judge_enabled:
+        return {
+            "status": "system_error", "statusName": "评测功能已关闭",
+            "stdout": "", "stderr": "", "compileMessage": "服务器已关闭评测功能。",
+            "time": 0, "compileMs": 0, "exitCode": -1,
+        }
+
+    code = payload.get("code") or ""
+    stdin = payload.get("stdin") or ""
+    limit = int(payload.get("timeLimit") or payload.get("time_limit") or settings.judge_default_time_limit)
+    limit = max(200, min(limit, 10_000))
+
+    r = _engine.run_once(code, stdin, limit)
+    return {
+        "status": r["status"],
+        "statusName": r["status_name"],
+        "stdout": r["stdout"],
+        "stderr": r["stderr"],
+        "compileMessage": r["compile_message"],
+        "time": r["time_ms"],
+        "compileMs": r["compile_ms"],
+        "exitCode": r["exit_code"],
+        "memory": r.get("memory_kb", 0),
+    }
+
+
 @app.get("/api/meta", tags=["系统"], summary="站点元信息")
 def meta() -> dict:
     """前端启动时拉一次，用于展示版本号和公告。"""

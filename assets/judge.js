@@ -133,9 +133,17 @@
   }
 
   /* ---------------- 与服务通信 ---------------- */
+  function authHeaders() {
+    var t = null;
+    try { t = localStorage.getItem('lqcpp_token_v2'); } catch (e) { t = null; }
+    var h = { 'Content-Type': 'application/json' };
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return h;
+  }
+
   function ping() {
     if (state.checked) return Promise.resolve(state.ok ? state.info : null);
-    return fetch(BASE + '/api/ping', { cache: 'no-store' })
+    return fetch(BASE + '/api/ping', { cache: 'no-store', headers: authHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         state.checked = true; state.ok = !!j.ok; state.info = j;
@@ -150,7 +158,7 @@
   function run(code, stdin, timeLimit) {
     return fetch(BASE + '/api/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ code: code, stdin: stdin || '', timeLimit: timeLimit || 2000 })
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);

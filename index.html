@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>蓝桥杯 C++ 省一特训 · 从零到省一</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style2.css">
 </head>
 <body>
 <div class="app">
@@ -43,7 +44,8 @@
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="搜索知识点…" autocomplete="off">
       </div>
-      <button class="icon-btn" id="resetBtn" title="清空学习进度">重置</button>
+      <div class="user-bar" id="userBar"></div>
+      <button class="icon-btn" id="resetBtn" title="清空本机学习进度">重置</button>
     </header>
 
     <div class="content" id="content"></div>
@@ -68,6 +70,10 @@
 <script src="data/problems-5.js"></script>
 <script src="data/problems-6.js"></script>
 <script src="data/problems-7.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/pages-user.js"></script>
+<script src="assets/pages-admin.js"></script>
 <script src="assets/judge.js"></script>
 <script src="assets/app.js"></script>
 </body>

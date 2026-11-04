@@ -241,13 +241,13 @@
   }
 
   /* ---------------- 自测题 ---------------- */
-  function quiz(sec) {
+  function quiz(sec, idx) {
     var opts = sec.o.map(function (o, i) {
       return '<div class="quiz-opt" data-i="' + i + '">' +
         '<span class="quiz-key">' + 'ABCD'[i] + '</span><span>' + inline(o) + '</span></div>';
     }).join('');
 
-    return '<div class="quiz" data-answer="' + sec.a + '">' +
+    return '<div class="quiz" data-answer="' + sec.a + '" data-idx="' + (idx == null ? -1 : idx) + '">' +
       '<div class="quiz-head"><span class="quiz-q-no">检查</span><span>' + inline(sec.q) + '</span></div>' +
       '<div class="quiz-opts">' + opts + '</div>' +
       '<div class="quiz-expl">' + (sec.e ? md(sec.e) : '') + '</div>' +
@@ -255,13 +255,13 @@
   }
 
   /* ---------------- section 分发 ---------------- */
-  function renderSection(s) {
+  function renderSection(s, idx) {
     if (typeof s === 'string') return md(s);
     switch (s.t) {
       case 'code': return codeBlock(s.x, s.lang);
       case 'note': return note(s.kind, s.x);
       case 'table': return table(s.head, s.rows);
-      case 'quiz': return quiz(s);
+      case 'quiz': return quiz(s, idx);
       case 'html': return s.x;
       case 'md':
       default: return md(s.x || '');
@@ -303,6 +303,46 @@
           '</div>';
         });
       });
+    } else if (mode === 'ext') {
+      html = '<div class="stage-title">我的</div>';
+      if (API.isLogged()) {
+        var u = API.user();
+        html +=
+          '<div class="nav-item" data-go="#/profile">' +
+            '<span class="dot"></span><span class="nav-text">个人中心</span>' +
+          '</div>' +
+          '<div class="nav-item" data-go="#/stats">' +
+            '<span class="dot"></span><span class="nav-text">学习统计</span>' +
+          '</div>' +
+          '<div class="nav-item" data-go="#/settings">' +
+            '<span class="dot"></span><span class="nav-text">账号设置</span>' +
+          '</div>';
+        if (API.isStaff()) {
+          html += '<div class="stage-title">管理</div>' +
+            '<div class="nav-item" data-go="#/admin">' +
+              '<span class="dot"></span><span class="nav-text">管理后台</span>' +
+            '</div>';
+        }
+        html += '<div class="stage-title">账号</div>' +
+          '<div style="padding:6px 10px 4px;font-size:12px;color:var(--text-mute);line-height:1.8">' +
+            '当前：<b style="color:var(--text-dim)">' + esc(u.display_name || u.username) + '</b><br>' +
+            '<span style="color:#4d566b">' + esc(u.role) + '</span>' +
+          '</div>';
+      } else {
+        html +=
+          '<div class="nav-item" data-go="#/login">' +
+            '<span class="dot"></span><span class="nav-text">登录</span>' +
+          '</div>' +
+          '<div class="nav-item" data-go="#/register">' +
+            '<span class="dot"></span><span class="nav-text">注册</span>' +
+          '</div>' +
+          '<div class="stage-title">说明</div>' +
+          '<div style="padding:6px 10px 4px;font-size:12px;color:var(--text-mute);line-height:1.75">' +
+            (API.isOnline()
+              ? '登录后学习进度会同步到服务器，换设备能接着学。'
+              : '后端未启动，当前为<b style="color:var(--amber)">纯静态模式</b>，进度只存在本机浏览器。') +
+          '</div>';
+      }
     } else {
       html =
         '<div class="stage-title">快速开始</div>' +
@@ -349,11 +389,32 @@
   }
 
   /* ---------------- 路由 ---------------- */
+  /* 这些页面由 pages-user.js / pages-admin.js 提供，不属于知识/练习两栏 */
+  var EXT_PAGES = {
+    login: 1, register: 1, profile: 1, stats: 1, settings: 1, user: 1, admin: 1
+  };
+
   function route() {
+    stopDwellTimer();
+
     var h = (location.hash || '').replace(/^#\/?/, '');
     var parts = h.split('/').filter(Boolean);
-    var mode = parts[0] === 'practice' ? 'practice' : (parts[0] === 'runner' ? 'runner' : 'learn');
+    var root = parts[0] || 'learn';
     var id = parts[1] || '';
+
+    /* 扩展页面 */
+    if (EXT_PAGES[root]) {
+      document.querySelectorAll('.mode-btn').forEach(function (b) {
+        b.classList.remove('active');
+      });
+      renderSidebar('ext');
+      renderExtPage(root, id);
+      el('content').scrollTop = 0;
+      el('sidebar').classList.remove('open');
+      return;
+    }
+
+    var mode = root === 'practice' ? 'practice' : (root === 'runner' ? 'runner' : 'learn');
 
     document.querySelectorAll('.mode-btn').forEach(function (b) {
       b.classList.toggle('active', b.dataset.mode === mode);
@@ -375,6 +436,33 @@
     el('sidebar').classList.remove('open');
   }
 
+  function renderExtPage(root, id) {
+    var c = el('content');
+    try {
+      if (root === 'admin') {
+        if (window.AdminPages) window.AdminPages.render(c, id);
+        else c.innerHTML = '<div class="wrap"><div class="empty">管理模块未加载</div></div>';
+        setCrumb('管理后台');
+        return;
+      }
+      if (root === 'user') {
+        if (window.Pages) window.Pages.user(c, id);
+        setCrumb('用户主页');
+        return;
+      }
+      var fn = window.Pages && window.Pages[root];
+      if (fn) {
+        fn(c, id);
+        setCrumb({ login: '登录', register: '注册', profile: '个人中心',
+                   stats: '学习统计', settings: '账号设置' }[root] || '');
+      } else {
+        c.innerHTML = '<div class="wrap"><div class="empty">页面不存在</div></div>';
+      }
+    } catch (err) {
+      c.innerHTML = '<div class="wrap"><div class="empty">页面渲染出错：' + esc(err.message) + '</div></div>';
+    }
+  }
+
   function setCrumb(txt) { el('crumb').innerHTML = txt; }
 
   /* ---------------- 首页 ---------------- */
@@ -392,6 +480,8 @@
       '<p>按顺序学完 ' + CHAPTERS.length + ' 个知识点专题，再进入 ' + PROBLEMS.length +
       ' 道配套题目。每节都有可编译代码、易错点、自测题。学完不是目的，能默写模板才是。</p>' +
     '</div>';
+
+    h += '<div id="homeTips"></div>';
 
     h += '<div class="stat-row">' +
       '<div class="stat"><b>' + CHAPTERS.length + '</b><span>知识专题</span></div>' +
@@ -437,9 +527,53 @@
 
     h += '</div>';
     el('content').innerHTML = h;
+
+    renderHomeTips();
   }
 
-  /* ---------------- 章节页 ---------------- */
+  /* ---------------- 首页状态条 ---------------- */
+  function renderHomeTips() {
+    var box = el('homeTips');
+    if (!box) return;
+
+    if (!API.isOnline()) {
+      box.innerHTML =
+        '<div class="home-band">' +
+          '<div class="hb-left"><b>当前是纯静态模式</b>' +
+          '<span>后端没启动，学习进度只存在这台设备的浏览器里。</span></div>' +
+          '<div class="hb-right"><span class="hb-code">python -m server.main</span></div>' +
+        '</div>';
+      return;
+    }
+
+    if (!API.isLogged()) {
+      box.innerHTML =
+        '<div class="home-band accent">' +
+          '<div class="hb-left"><b>登录后进度自动同步</b>' +
+          '<span>换电脑接着学，做题记录和掌握度分析都跟着你走。</span></div>' +
+          '<div class="hb-right">' +
+            '<a class="btn btn-primary btn-sm" href="#/register">免费注册</a>' +
+            '<a class="btn btn-sm" href="#/login">已有账号</a>' +
+          '</div>' +
+        '</div>';
+      return;
+    }
+
+    box.innerHTML = '<div class="home-band loading-band">加载今日建议…</div>';
+    API.stats.tips().then(function (tips) {
+      if (!tips || !tips.length) { box.innerHTML = ''; return; }
+      var first = tips[0];
+      box.innerHTML =
+        '<div class="home-band ' + (first.level === 'warn' ? 'warn' : first.level === 'ok' ? 'ok' : '') + '">' +
+          '<div class="hb-left"><b>' + esc(first.title) + '</b>' +
+          '<span>' + esc(first.detail) + '</span></div>' +
+          '<div class="hb-right">' +
+            (first.action ? '<a class="btn btn-sm" href="' + esc(first.action) + '">去看看</a>' : '') +
+            '<a class="btn btn-sm" href="#/profile">个人中心</a>' +
+          '</div>' +
+        '</div>';
+    }).catch(function () { box.innerHTML = ''; });
+  }
   function renderChapter(id) {
     var idx = -1;
     for (var i = 0; i < CHAPTERS.length; i++) { if (String(CHAPTERS[i].id) === String(id)) { idx = i; break; } }
@@ -465,7 +599,7 @@
         c.goals.map(function (g) { return '<li>' + inline(g) + '</li>'; }).join('') + '</ul></div>';
     }
 
-    h += c.body.map(renderSection).join('');
+    h += c.body.map(function (s, i) { return renderSection(s, i); }).join('');
 
     /* 底部导航 */
     h += '<div class="chapter-foot">';
@@ -480,17 +614,73 @@
 
     h += '</div>';
     el('content').innerHTML = h;
+    el('content').setAttribute('data-chapter', c.id);
 
     var mb = el('markBtn');
     if (mb) {
       mb.addEventListener('click', function () {
-        if (prog.chapters[c.id]) delete prog.chapters[c.id];
-        else prog.chapters[c.id] = Date.now();
+        var willDone = !prog.chapters[c.id];
+        if (willDone) prog.chapters[c.id] = Date.now();
+        else delete prog.chapters[c.id];
         saveProgress();
-        route();
-        refreshProgress();
+
+        /* 登录状态下同步到服务器 */
+        if (API.isOnline() && API.isLogged()) {
+          mb.disabled = true;
+          API.progress.save({
+            chapter_id: c.id,
+            status: willDone ? 'done' : 'learning',
+            seconds_delta: 0,
+            scroll_percent: willDone ? 100 : 0
+          }).then(function () {
+            if (window.Pages) window.Pages.toast(willDone ? '已标记学完，进度已同步' : '已取消完成标记', 'ok');
+          }).catch(function (e) {
+            if (window.Pages) window.Pages.toast('同步失败：' + e.message, 'bad');
+          }).then(function () {
+            mb.disabled = false;
+            route();
+            refreshProgress();
+          });
+        } else {
+          route();
+          refreshProgress();
+        }
       });
     }
+
+    startDwellTimer(c.id);
+  }
+
+  /* ---------------- 停留时长统计 ---------------- */
+  var _dwellTimer = null;
+  var _dwellChapter = null;
+  var _dwellSec = 0;
+
+  function startDwellTimer(chapterId) {
+    stopDwellTimer();
+    _dwellChapter = chapterId;
+    _dwellSec = 0;
+    if (!API.isOnline() || !API.isLogged()) return;
+    _dwellTimer = setInterval(function () {
+      _dwellSec += 30;
+      flushDwell();
+    }, 30000);
+  }
+
+  function flushDwell() {
+    if (!_dwellChapter || !_dwellSec) return;
+    var sec = _dwellSec;
+    _dwellSec = 0;
+    API.progress.save({ chapter_id: _dwellChapter, seconds_delta: sec }).catch(function () {});
+  }
+
+  function stopDwellTimer() {
+    if (_dwellTimer) {
+      clearInterval(_dwellTimer);
+      _dwellTimer = null;
+    }
+    flushDwell();
+    _dwellChapter = null;
   }
 
   /* ---------------- 代码运行器 ---------------- */
@@ -630,8 +820,12 @@
         '<div class="collapse-body">' + md(p.pitfall) + '</div></div>';
     }
 
-    /* 本地评测 */
-    h += '<div class="collapse open"><div class="collapse-head"><span class="arrow">▶</span>动手写代码 · 本地评测（先自己想，卡住了再看参考代码）</div>' +
+    /* 提交判分 */
+    h += '<div class="collapse open"><div class="collapse-head"><span class="arrow">▶</span>提交评测 · 服务器判分（计入通过记录）</div>' +
+      '<div class="collapse-body"><div id="submitBox"></div></div></div>';
+
+    /* 本地跑样例 */
+    h += '<div class="collapse"><div class="collapse-head"><span class="arrow">▶</span>本地测样例 · 不判分，秒出结果</div>' +
       '<div class="collapse-body"><div id="judgeHost"></div></div></div>';
 
     /* 关联知识点 */
@@ -656,6 +850,9 @@
 
     el('content').innerHTML = h;
 
+    /* 提交判分面板 */
+    renderSubmitBox(p);
+
     /* 挂载本地评测面板 */
     var judgeHost = el('judgeHost');
     if (judgeHost && window.Judge) {
@@ -678,6 +875,163 @@
       });
     }
   }
+
+  /* ---------------- 提交判分面板 ---------------- */
+  function renderSubmitBox(p) {
+    var box = el('submitBox');
+    if (!box) return;
+
+    if (!API.isOnline()) {
+      box.innerHTML = '<div class="empty-sm">提交判分需要后端服务。启动方式：<code class="inline">python -m server.main</code></div>';
+      return;
+    }
+
+    var logged = API.isLogged();
+
+    box.innerHTML =
+      '<div class="sub-panel">' +
+        '<textarea id="subCode" class="sub-editor" spellcheck="false" ' +
+          'placeholder="在这里写你的 C++ 代码。Ctrl+Enter 提交。" ' + (logged ? '' : 'disabled') + '></textarea>' +
+        '<div class="sub-bar">' +
+          '<span class="sub-hint" id="subHint">' +
+            (logged ? '服务器会用全部测试点判分，通过后计入刷题记录' : '登录后才能提交') +
+          '</span>' +
+          '<button class="btn btn-primary btn-sm" id="subBtn"' + (logged ? '' : ' disabled') + '>' +
+            (logged ? '提交评测' : '请先登录') +
+          '</button>' +
+        '</div>' +
+        '<div id="subResult"></div>' +
+      '</div>';
+
+    var ta = el('subCode');
+    if (!ta) return;
+
+    /* 草稿自动保存：刷新页面代码不丢 */
+    var key = 'lqcpp_code_p' + p.id;
+    try {
+      var saved = localStorage.getItem(key);
+      if (saved) ta.value = saved;
+    } catch (e) { /* 隐私模式下 localStorage 可能不可用 */ }
+
+    ta.addEventListener('input', function () {
+      try { localStorage.setItem(key, ta.value); } catch (e) { /* ignore */ }
+    });
+
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var s = ta.selectionStart;
+        var t = ta.value;
+        ta.value = t.slice(0, s) + '    ' + t.slice(ta.selectionEnd);
+        ta.selectionStart = ta.selectionEnd = s + 4;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        var b = el('subBtn');
+        if (b && !b.disabled) b.click();
+      }
+    });
+
+    var btn = el('subBtn');
+    if (btn && logged) {
+      btn.addEventListener('click', function () { doSubmit(p, ta); });
+    }
+  }
+
+  function doSubmit(p, ta) {
+    var code = (ta.value || '').trim();
+    var res = el('subResult');
+    var btn = el('subBtn');
+
+    if (!code) {
+      res.innerHTML = '<div class="judge-verdict fail">代码是空的</div>';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '提交中…';
+    res.innerHTML = '<div class="judge-empty">已提交，正在排队评测…</div>';
+
+    API.judge.submit(p.id, code).then(function (sub) {
+      return API.judge.waitFor(sub.id, function (tick) {
+        var label = { pending: '排队中', compiling: '编译中', running: '运行测试点' }[tick.status] || tick.status_name;
+        res.innerHTML = '<div class="judge-empty">' + esc(label) + '…</div>';
+      });
+    }).then(function (sub) {
+      renderSubmitResult(res, sub);
+
+      if (sub.status === 'accepted') {
+        prog.problems[p.id] = Date.now();
+        saveProgress();
+        refreshProgress();
+        var db = el('doneBtn');
+        if (db) {
+          db.className = 'btn ok';
+          db.textContent = '✓ 已通过（点击取消）';
+        }
+      }
+    }).catch(function (e) {
+      res.innerHTML = '<div class="judge-verdict fail">提交失败：' + esc(e.message) + '</div>';
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = '提交评测';
+    });
+  }
+
+  function renderSubmitResult(box, sub) {
+    var pass = sub.status === 'accepted';
+    var h = '<div class="judge-verdict ' + (pass ? 'pass' : 'fail') + '">' +
+      esc(sub.status_name) + ' · ' + sub.score + ' / ' + sub.max_score + ' 分' +
+      (sub.time_ms ? ' · 最慢 ' + sub.time_ms + ' ms' : '') +
+      (sub.judge_time_ms ? ' · 评测耗时 ' + (sub.judge_time_ms / 1000).toFixed(1) + ' s' : '') +
+    '</div>';
+
+    if (sub.compile_message) {
+      h += '<div class="judge-sub">编译输出</div>' +
+        '<pre class="judge-pre err-text">' + esc(sub.compile_message) + '</pre>';
+    }
+
+    if (sub.results && sub.results.length) {
+      h += '<div class="judge-sub">测试点</div><div class="case-list">';
+      sub.results.forEach(function (r) {
+        var ok = r.status === 'accepted';
+        h += '<div class="case-row">' +
+          '<span class="case-no">#' + r.order_no + '</span>' +
+          '<span class="jv ' + (ok ? 'ok' : 'err') + '">' + esc(STATUS_TEXT[r.status] || r.status) + '</span>' +
+          '<span class="case-meta">' + r.time_ms + ' ms</span>' +
+          '<span class="case-meta">' + r.score + ' 分</span>' +
+          (r.is_sample ? '<span class="case-meta">样例</span>' : '') +
+        '</div>';
+        if (!ok && r.is_sample && r.actual_excerpt) {
+          h += '<div class="case-diff">' +
+            '<div><span>期望</span><pre>' + esc(r.expected_excerpt) + '</pre></div>' +
+            '<div><span>实际</span><pre>' + esc(r.actual_excerpt) + '</pre></div>' +
+          '</div>';
+        }
+      });
+      h += '</div>';
+    }
+
+    if (sub.judge_message && !pass) {
+      h += '<div class="judge-sub">判定说明</div><div class="dim" style="font-size:12.5px">' +
+        esc(sub.judge_message) + '</div>';
+    }
+
+    box.innerHTML = h;
+  }
+
+  var STATUS_TEXT = {
+    accepted: '通过',
+    wrong_answer: '答案错误',
+    time_limit: '超时',
+    memory_limit: '超内存',
+    runtime_error: '运行错误',
+    compile_error: '编译错误',
+    output_limit: '输出超限',
+    system_error: '系统错误',
+    pending: '等待',
+    running: '运行'
+  };
 
   /* ---------------- 全局事件 ---------------- */
   document.addEventListener('click', function (e) {
@@ -750,6 +1104,24 @@
       });
       var ex = quizBox.querySelector('.quiz-expl');
       if (ex) ex.classList.add('show');
+
+      /* 登录状态下把作答结果上报，用于掌握度计算 */
+      if (API.isOnline() && API.isLogged()) {
+        var chapterId = parseInt(el('content').getAttribute('data-chapter') || '0', 10);
+        var secIdx = parseInt(quizBox.getAttribute('data-idx') || '-1', 10);
+        if (chapterId && secIdx >= 0) {
+          API.progress.quiz({
+            chapter_id: chapterId,
+            section_index: secIdx,
+            chosen: chosen,
+            answer: ans
+          }).then(function (res) {
+            if (window.Pages) {
+              window.Pages.toast(res.correct ? '答对了' : '答案是 ' + 'ABCD'[res.answer], res.correct ? 'ok' : 'bad');
+            }
+          }).catch(function () { /* 静默失败，不影响阅读 */ });
+        }
+      }
       return;
     }
   });
@@ -791,9 +1163,83 @@
     });
   }
 
-  /* 启动 */
+  /* ---------------- 顶栏用户区 ---------------- */
+  function updateUserBar() {
+    var box = el('userBar');
+    if (!box) return;
+
+    if (!API.isOnline()) {
+      box.innerHTML = '<span class="ub-offline" title="后端未启动，当前为纯静态模式">离线模式</span>';
+      return;
+    }
+
+    if (API.isLogged()) {
+      var u = API.user();
+      var initial = (u.display_name || u.username || '?').slice(0, 1).toUpperCase();
+      box.innerHTML =
+        (API.isStaff() ? '<a class="ub-link" href="#/admin">后台</a>' : '') +
+        '<a class="ub-link" href="#/stats">统计</a>' +
+        '<a class="ub-user" href="#/profile" title="' + esc(u.email) + '">' +
+          '<span class="ub-avatar">' + esc(initial) + '</span>' +
+          '<span class="ub-name">' + esc(u.display_name || u.username) + '</span>' +
+        '</a>';
+    } else {
+      box.innerHTML =
+        '<a class="ub-link" href="#/login">登录</a>' +
+        '<a class="ub-btn" href="#/register">注册</a>';
+    }
+  }
+
+  /* ---------------- 服务端进度同步 ---------------- */
+  function syncFromServer() {
+    if (!API.isOnline() || !API.isLogged()) return Promise.resolve();
+    return API.progress.list().then(function (list) {
+      (list || []).forEach(function (p) {
+        if (p.status === 'done') prog.chapters[p.chapter_id] = true;
+      });
+      saveProgress();
+      refreshProgress();
+      return API.judge.mine({ size: 200, status: 'accepted' }).then(function (d) {
+        ((d && d.items) || []).forEach(function (s) { prog.problems[s.problem_id] = true; });
+        saveProgress();
+      }).catch(function () {});
+    }).catch(function () {});
+  }
+
+  function onLoginChanged() {
+    updateUserBar();
+    syncFromServer().then(function () { route(); });
+  }
+
+  /* 暴露给 pages-*.js 使用 */
+  window.App = {
+    route: route,
+    el: el,
+    esc: esc,
+    md: md,
+    inline: inline,
+    setCrumb: setCrumb,
+    updateUserBar: updateUserBar,
+    onLoginChanged: onLoginChanged,
+    syncFromServer: syncFromServer,
+    chapters: function () { return CHAPTERS; },
+    problems: function () { return PROBLEMS; }
+  };
+
+  /* ---------------- 启动 ---------------- */
   window.addEventListener('hashchange', route);
+
   if (!location.hash) location.hash = '#/learn';
   route();
   refreshProgress();
+
+  /* 探测后端：在线就走完整功能，离线退回纯静态 */
+  API.probe().then(function () {
+    updateUserBar();
+    return syncFromServer();
+  }).then(function () {
+    route();
+  }).catch(function () {
+    updateUserBar();
+  });
 })();
