@@ -408,7 +408,7 @@
         b.classList.remove('active');
       });
       renderSidebar('ext');
-      renderExtPage(root, id);
+      renderExtPage(root, id, parts.slice(2));
       el('content').scrollTop = 0;
       el('sidebar').classList.remove('open');
       return;
@@ -436,11 +436,11 @@
     el('sidebar').classList.remove('open');
   }
 
-  function renderExtPage(root, id) {
+  function renderExtPage(root, id, rest) {
     var c = el('content');
     try {
       if (root === 'admin') {
-        if (window.AdminPages) window.AdminPages.render(c, id);
+        if (window.AdminPages) window.AdminPages.render(c, id, rest || []);
         else c.innerHTML = '<div class="wrap"><div class="empty">管理模块未加载</div></div>';
         setCrumb('管理后台');
         return;

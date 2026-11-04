@@ -30,3 +30,10 @@ desktop.ini
 # 测试产物
 *.exe
 !toolchain/**
+tmp/
+.verify/
+
+# 软著申请材料（只在本地保留，不公开）
+软著材料/
+tools/gen_copyright_source.py
+tools/gen_copyright_manual.py

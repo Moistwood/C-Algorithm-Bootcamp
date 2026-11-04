@@ -31,8 +31,9 @@
   }
 
   /* ====================================================== */
-  function adminPage(container, tab) {
+  function adminPage(container, tab, rest) {
     tab = tab || 'overview';
+    rest = rest || [];
 
     if (!API.isOnline()) {
       container.innerHTML = '<div class="wrap"><div class="empty">需要后端服务</div></div>';
@@ -74,7 +75,7 @@
       overview: renderOverview,
       users: renderUsers,
       problems: renderProblems,
-      testcases: renderTestcases,
+      testcases: function (b) { renderTestcases(b, rest[0]); },
       chapters: renderChapters,
       announce: renderAnnounce,
       logs: renderLogs
