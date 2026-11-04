@@ -1,9 +1,21 @@
 # 本地工具链（约 500MB，不进仓库）
 toolchain/
 
+# 运行期数据（数据库、评测临时文件、日志）
+runtime/
+*.db
+*.db-wal
+*.db-shm
+
+# 环境变量
+.env
+
 # Python
 __pycache__/
 *.pyc
+*.pyo
+.venv/
+venv/
 
 # 系统文件
 .DS_Store
@@ -14,3 +26,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# 测试产物
+*.exe
+!toolchain/**
