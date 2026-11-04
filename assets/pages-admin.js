@@ -44,7 +44,7 @@
         '<div class="hero-actions"><a class="btn btn-primary" href="#/login">去登录</a></div></div></div>';
       return;
     }
-    if (!API.isStaff()) {
+    if (!API.isAdmin()) {
       container.innerHTML = '<div class="wrap"><div class="hero"><h1>没有权限</h1>' +
         '<p>管理后台只对管理员和教师开放。</p></div></div>';
       return;
@@ -130,7 +130,7 @@
     box.innerHTML = '<div class="admin-bar">' +
       '<input id="uSearch" class="inp" placeholder="搜索用户名 / 邮箱">' +
       '<select id="uRole" class="inp sel"><option value="">全部角色</option>' +
-        '<option value="student">学员</option><option value="teacher">教师</option>' +
+        '<option value="student">学员</option>' +
         '<option value="admin">管理员</option></select>' +
       '<button class="btn" id="uGo">查询</button></div>' +
       '<div id="uList"><div class="loading">加载中…</div></div>';
@@ -149,7 +149,7 @@
               '<td>' + esc(u.display_name || u.username) + '<br><span class="dim mono">' + esc(u.username) + '</span></td>' +
               '<td class="dim">' + esc(u.email) + '</td>' +
               '<td><select class="inp sel tiny" data-role="' + u.id + '">' +
-                ['student', 'teacher', 'admin'].map(function (r) {
+                ['student', 'admin'].map(function (r) {
                   return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + r + '</option>';
                 }).join('') + '</select></td>' +
               '<td>' + (u.is_active ? '<span class="lr-tag ok">正常</span>' : '<span class="lr-tag bad">停用</span>') + '</td>' +

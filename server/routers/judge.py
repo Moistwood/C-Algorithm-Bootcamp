@@ -186,7 +186,7 @@ def submission_detail(submission_id: int, db: DbSession, user: OptionalUser) -> 
     if not sub:
         raise HTTPException(status_code=404, detail="提交记录不存在")
     # 别人的代码只有管理员和教师能看，普通用户只能看自己的
-    if sub.user_id != (user.id if user else -1) and not (user and user.is_staff):
+    if sub.user_id != (user.id if user else -1) and not (user and user.is_admin):
         raise HTTPException(status_code=403, detail="无权查看他人的提交代码")
     return _to_out(db, sub)
 

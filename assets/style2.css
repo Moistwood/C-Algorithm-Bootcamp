@@ -1079,3 +1079,38 @@
   .case-diff { grid-template-columns: 1fr; }
   .sub-editor { min-height: 200px; }
 }
+
+/* ==========================================================
+   样例与隐藏用例的标注
+   ========================================================== */
+.prob-sec-title .sec-hint {
+  margin-left: 10px;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent, #7c8cff);
+  opacity: .85;
+}
+
+.sample-note {
+  margin: 10px 0 2px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text-mute);
+}
+
+.case-flag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-mute);
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+
+.case-flag.sample {
+  color: var(--amber, #f5b544);
+  border-color: rgba(245, 181, 68, .35);
+}

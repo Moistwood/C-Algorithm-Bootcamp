@@ -163,7 +163,7 @@ def delete_comment(comment_id: int, db: DbSession, user: CurrentUser) -> Msg:
     c = db.get(Comment, comment_id)
     if not c:
         raise HTTPException(status_code=404, detail="评论不存在")
-    if c.user_id != user.id and not user.is_staff:
+    if c.user_id != user.id and not user.is_admin:
         raise HTTPException(status_code=403, detail="只能删除自己的评论")
     c.is_deleted = True
     db.commit()

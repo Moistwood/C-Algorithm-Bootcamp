@@ -312,7 +312,6 @@
     isOnline: function () { return state.online; },
     isLogged: function () { return !!(state.token && state.user); },
     user: function () { return state.user; },
-    isAdmin: function () { return state.user && state.user.role === 'admin'; },
-    isStaff: function () { return state.user && (state.user.role === 'admin' || state.user.role === 'teacher'); }
+    isAdmin: function () { return state.user && state.user.role === 'admin'; }
   };
 })();

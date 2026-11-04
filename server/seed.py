@@ -32,6 +32,7 @@ from .security import hash_password
 logger = logging.getLogger("algo.seed")
 
 CONTENT_FILE = Path(__file__).resolve().parent / "content.json"
+HIDDEN_FILE = Path(__file__).resolve().parent / "hidden_testcases.json"
 
 
 def _load_content() -> dict | None:
@@ -45,6 +46,17 @@ def _load_content() -> dict | None:
         return None
 
 
+def _load_hidden() -> dict:
+    """隐藏测试点。由 tools/gen_hidden_testcases.py 生成，缺失时降级为空。"""
+    if not HIDDEN_FILE.is_file():
+        return {}
+    try:
+        return json.loads(HIDDEN_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("hidden_testcases.json 解析失败：%s", exc)
+        return {}
+
+
 def ensure_seed_data(force: bool = False) -> None:
     data = _load_content()
     if not data:
@@ -54,6 +66,7 @@ def ensure_seed_data(force: bool = False) -> None:
         _seed_stages(db, data.get("stages", []))
         _seed_chapters(db, data.get("chapters", []))
         _seed_problems(db, data.get("problems", []), force=force)
+        _seed_hidden_cases(db, _load_hidden(), force=force)
         _seed_admin(db)
         _seed_meta(db)
 
@@ -234,6 +247,90 @@ def _seed_problems(db, problems: list[dict], force: bool = False) -> None:
     db.flush()
     if created:
         logger.info("导入 %d 道题目", created)
+
+
+# ---------------------------------------------------------------------
+# 隐藏测试点
+# ---------------------------------------------------------------------
+
+
+def _rebalance_scores(db, problem_id: int) -> None:
+    """把一道题的全部测试点分值按 100 均分，余数给最后一个。"""
+    cases = list(
+        db.scalars(
+            select(TestCase)
+            .where(TestCase.problem_id == problem_id)
+            .order_by(TestCase.order_no, TestCase.id)
+        )
+    )
+    if not cases:
+        return
+    n = len(cases)
+    base, rem = divmod(100, n)
+    for i, c in enumerate(cases):
+        c.score = base + (rem if i == n - 1 else 0)
+
+
+def _seed_hidden_cases(db, payload: dict, force: bool = False) -> None:
+    """灌入预先算好的隐藏测试点。
+
+    只有样例时，用户在题目页能看到全部输入输出，写个 `cout << "答案"`
+    就能拿满分。这里给每题补三组隐藏数据，输入不可见。
+    """
+    if not payload:
+        logger.warning("没有 hidden_testcases.json，题目将只有样例测试点")
+        return
+
+    added = 0
+    balanced = 0
+    for pid_str, rows in payload.items():
+        try:
+            pid = int(pid_str)
+        except (TypeError, ValueError):
+            continue
+        if not rows or not db.get(Problem, pid):
+            continue
+
+        existing = list(
+            db.scalars(
+                select(TestCase)
+                .where(TestCase.problem_id == pid)
+                .order_by(TestCase.order_no, TestCase.id)
+            )
+        )
+        hidden = [c for c in existing if not c.is_sample]
+
+        if hidden and not force:
+            continue
+
+        if hidden:
+            for c in hidden:
+                db.delete(c)
+            db.flush()
+            existing = [c for c in existing if c.is_sample]
+
+        base_order = max([c.order_no for c in existing], default=0)
+        for i, row in enumerate(rows, start=1):
+            db.add(
+                TestCase(
+                    problem_id=pid,
+                    order_no=base_order + i,
+                    input_data=row.get("input", ""),
+                    expected_output=row.get("output", ""),
+                    score=1,
+                    is_sample=False,
+                    explanation=row.get("label", "隐藏测试点"),
+                )
+            )
+            added += 1
+
+        db.flush()
+        _rebalance_scores(db, pid)
+        balanced += 1
+
+    db.flush()
+    if added:
+        logger.info("补入 %d 个隐藏测试点，重算 %d 道题的分值", added, balanced)
 
 
 # ---------------------------------------------------------------------

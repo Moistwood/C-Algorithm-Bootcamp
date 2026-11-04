@@ -107,10 +107,8 @@ def require_roles(*roles: str):
 
 
 require_admin = require_roles(UserRole.ADMIN.value)
-require_staff = require_roles(UserRole.ADMIN.value, UserRole.TEACHER.value)
 
 AdminUser = Annotated[User, Depends(require_admin)]
-StaffUser = Annotated[User, Depends(require_staff)]
 
 
 class Pagination:

@@ -271,7 +271,7 @@ def random_problems(
 @router.get("/problems/{problem_id}", response_model=ProblemOut, summary="题目详情")
 def get_problem(problem_id: int, db: DbSession, user: OptionalUser) -> ProblemOut:
     p = db.get(Problem, problem_id)
-    if not p or (not p.is_published and not (user and user.is_staff)):
+    if not p or (not p.is_published and not (user and user.is_admin)):
         raise HTTPException(status_code=404, detail="题目不存在")
 
     item = ProblemOut.model_validate(p)
@@ -283,6 +283,13 @@ def get_problem(problem_id: int, db: DbSession, user: OptionalUser) -> ProblemOu
     ).all()
     if samples:
         item.samples_detail = [TestCaseOut.model_validate(t) for t in samples]
+
+    # 只告知数量，不泄露内容
+    item.hidden_case_count = db.scalar(
+        select(func.count(TestCase.id)).where(
+            TestCase.problem_id == p.id, TestCase.is_sample.is_(False)
+        )
+    ) or 0
 
     flags = _user_problem_flags(db, user, [p.id])
     accepted, attempted = flags.get(p.id, (False, False))

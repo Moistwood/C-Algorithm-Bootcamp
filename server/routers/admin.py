@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 
 from ..config import settings
-from ..deps import AdminUser, DbSession, PageQuery, StaffUser, client_ip, write_audit
+from ..deps import AdminUser, DbSession, PageQuery, client_ip, write_audit
 from ..models import (
     Announcement,
     AuditLog,
@@ -134,8 +134,8 @@ def update_user(
 
     if "role" in payload:
         role = payload["role"]
-        if role not in ("student", "teacher", "admin"):
-            raise HTTPException(status_code=400, detail="角色取值只能是 student / teacher / admin")
+        if role not in ("student", "admin"):
+            raise HTTPException(status_code=400, detail="角色取值只能是 student / admin")
         if user.id == admin.id and role != "admin":
             raise HTTPException(status_code=400, detail="不能取消自己的管理员权限")
         user.role = role
@@ -171,7 +171,7 @@ def reset_user_progress(user_id: int, request: Request, db: DbSession, admin: Ad
 
 
 @router.get("/chapters", response_model=list[ChapterOut], summary="全部章节（含未发布）")
-def admin_chapters(db: DbSession, staff: StaffUser) -> list[ChapterOut]:
+def admin_chapters(db: DbSession, staff: AdminUser) -> list[ChapterOut]:
     rows = db.scalars(select(Chapter).order_by(Chapter.stage_code, Chapter.order_no)).all()
     out = []
     for c in rows:
@@ -183,7 +183,7 @@ def admin_chapters(db: DbSession, staff: StaffUser) -> list[ChapterOut]:
 
 
 @router.post("/chapters", response_model=ChapterOut, summary="新建章节")
-def create_chapter(payload: ChapterIn, request: Request, db: DbSession, staff: StaffUser) -> ChapterOut:
+def create_chapter(payload: ChapterIn, request: Request, db: DbSession, staff: AdminUser) -> ChapterOut:
     stage = db.scalar(select(Stage).where(Stage.code == payload.stage_code))
     if not stage:
         raise HTTPException(status_code=400, detail="阶段不存在，请先建阶段")
@@ -199,7 +199,7 @@ def create_chapter(payload: ChapterIn, request: Request, db: DbSession, staff: S
 
 @router.put("/chapters/{chapter_id}", response_model=ChapterOut, summary="编辑章节")
 def update_chapter(
-    chapter_id: int, payload: ChapterIn, request: Request, db: DbSession, staff: StaffUser
+    chapter_id: int, payload: ChapterIn, request: Request, db: DbSession, staff: AdminUser
 ) -> ChapterOut:
     c = db.get(Chapter, chapter_id)
     if not c:
@@ -230,7 +230,7 @@ def delete_chapter(chapter_id: int, request: Request, db: DbSession, admin: Admi
 
 
 @router.post("/problems", response_model=ProblemOut, summary="新建题目")
-def create_problem(payload: ProblemIn, request: Request, db: DbSession, staff: StaffUser) -> ProblemOut:
+def create_problem(payload: ProblemIn, request: Request, db: DbSession, staff: AdminUser) -> ProblemOut:
     p = Problem(**payload.model_dump())
     db.add(p)
     db.flush()
@@ -242,7 +242,7 @@ def create_problem(payload: ProblemIn, request: Request, db: DbSession, staff: S
 
 @router.put("/problems/{problem_id}", response_model=ProblemOut, summary="编辑题目")
 def update_problem(
-    problem_id: int, payload: ProblemIn, request: Request, db: DbSession, staff: StaffUser
+    problem_id: int, payload: ProblemIn, request: Request, db: DbSession, staff: AdminUser
 ) -> ProblemOut:
     p = db.get(Problem, problem_id)
     if not p:
@@ -273,7 +273,7 @@ def delete_problem(problem_id: int, request: Request, db: DbSession, admin: Admi
 
 
 @router.get("/problems/{problem_id}/testcases", response_model=list[TestCaseOut], summary="题目测试点")
-def list_testcases(problem_id: int, db: DbSession, staff: StaffUser) -> list[TestCaseOut]:
+def list_testcases(problem_id: int, db: DbSession, staff: AdminUser) -> list[TestCaseOut]:
     rows = db.scalars(
         select(TestCase).where(TestCase.problem_id == problem_id).order_by(TestCase.order_no)
     ).all()
@@ -286,7 +286,7 @@ def save_testcases(
     items: list[TestCaseIn],
     request: Request,
     db: DbSession,
-    staff: StaffUser,
+    staff: AdminUser,
 ) -> list[TestCaseOut]:
     problem = db.get(Problem, problem_id)
     if not problem:
@@ -323,13 +323,13 @@ def save_testcases(
 
 
 @router.get("/announcements", response_model=list[AnnouncementOut], summary="公告列表")
-def list_announcements(db: DbSession, staff: StaffUser) -> list[AnnouncementOut]:
+def list_announcements(db: DbSession, staff: AdminUser) -> list[AnnouncementOut]:
     rows = db.scalars(select(Announcement).order_by(Announcement.id.desc())).all()
     return [AnnouncementOut.model_validate(a) for a in rows]
 
 
 @router.post("/announcements", response_model=AnnouncementOut, summary="发布公告")
-def create_announcement(payload: AnnouncementIn, db: DbSession, staff: StaffUser) -> AnnouncementOut:
+def create_announcement(payload: AnnouncementIn, db: DbSession, staff: AdminUser) -> AnnouncementOut:
     a = Announcement(**payload.model_dump())
     db.add(a)
     db.commit()
@@ -397,7 +397,7 @@ def audit_logs(
 
 
 @router.get("/comments", response_model=Page[dict], summary="全部评论")
-def all_comments(db: DbSession, staff: StaffUser, pg: PageQuery) -> Page[dict]:
+def all_comments(db: DbSession, staff: AdminUser, pg: PageQuery) -> Page[dict]:
     stmt = select(Comment).where(Comment.is_deleted.is_(False))
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(stmt.order_by(Comment.id.desc()).offset(pg.offset).limit(pg.limit)).all()
@@ -419,7 +419,7 @@ def all_comments(db: DbSession, staff: StaffUser, pg: PageQuery) -> Page[dict]:
 
 
 @router.delete("/comments/{comment_id}", response_model=Msg, summary="管理员删除评论")
-def admin_delete_comment(comment_id: int, request: Request, db: DbSession, staff: StaffUser) -> Msg:
+def admin_delete_comment(comment_id: int, request: Request, db: DbSession, staff: AdminUser) -> Msg:
     c = db.get(Comment, comment_id)
     if not c:
         raise HTTPException(status_code=404, detail="评论不存在")
@@ -430,7 +430,7 @@ def admin_delete_comment(comment_id: int, request: Request, db: DbSession, staff
 
 
 @router.post("/comments/{comment_id}/pin", response_model=Msg, summary="置顶评论")
-def pin_comment(comment_id: int, db: DbSession, staff: StaffUser) -> Msg:
+def pin_comment(comment_id: int, db: DbSession, staff: AdminUser) -> Msg:
     c = db.get(Comment, comment_id)
     if not c:
         raise HTTPException(status_code=404, detail="评论不存在")

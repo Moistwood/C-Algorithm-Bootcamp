@@ -210,7 +210,7 @@
         '<div class="profile-id">' +
           '<h1>' + esc(u.display_name || u.username) + '</h1>' +
           '<div class="profile-meta">' +
-            '<span class="chip">' + esc(u.role === 'admin' ? '管理员' : u.role === 'teacher' ? '教师' : '学员') + '</span>' +
+            '<span class="chip">' + esc(u.role === 'admin' ? '管理员' : '学员') + '</span>' +
             (u.school ? '<span class="chip">' + esc(u.school) + '</span>' : '') +
             '<span class="chip">加入于 ' + esc(String(u.created_at).slice(0, 10)) + '</span>' +
             (ov.rank ? '<span class="chip accent">排名 #' + ov.rank + ' / ' + ov.total_users + '</span>' : '') +

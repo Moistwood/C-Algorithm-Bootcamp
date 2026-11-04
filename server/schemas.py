@@ -128,7 +128,7 @@ class PasswordChangeIn(BaseModel):
 
 
 class AdminUserUpdateIn(BaseModel):
-    role: Literal["student", "teacher", "admin"] | None = None
+    role: Literal["student", "admin"] | None = None
     is_active: bool | None = None
     display_name: str | None = None
 
@@ -240,6 +240,7 @@ class ProblemOut(ProblemBrief):
     is_published: bool = True
     accept_rate: float = 0.0
     samples_detail: list[TestCaseOut] = []
+    hidden_case_count: int = 0
 
 
 class ProblemIn(BaseModel):

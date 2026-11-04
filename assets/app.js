@@ -25,6 +25,10 @@
   var CHAPTERS = window.CHAPTERS || [];
   var PROBLEMS = window.PROBLEMS || [];
 
+  /* 每道题除了页面上的样例，判题时还会跑的隐藏用例数量。
+     由 tools/gen_hidden_testcases.py 统一生成 3 组，改那边要同步这里。 */
+  var HIDDEN_CASES = 3;
+
   var STORE_KEY = 'lqcpp_progress_v1';
   var prog = loadProgress();
 
@@ -317,7 +321,7 @@
           '<div class="nav-item" data-go="#/settings">' +
             '<span class="dot"></span><span class="nav-text">账号设置</span>' +
           '</div>';
-        if (API.isStaff()) {
+        if (API.isAdmin()) {
           html += '<div class="stage-title">管理</div>' +
             '<div class="nav-item" data-go="#/admin">' +
               '<span class="dot"></span><span class="nav-text">管理后台</span>' +
@@ -786,13 +790,17 @@
       h += '<div class="prob-sec"><div class="prob-sec-title">输出格式</div>' + md(p.output) + '</div>';
     }
     if (p.samples && p.samples.length) {
-      h += '<div class="prob-sec"><div class="prob-sec-title">样例</div>';
+      h += '<div class="prob-sec"><div class="prob-sec-title">样例' +
+        '<span class="sec-hint">判题时另跑 ' + HIDDEN_CASES + ' 组隐藏数据</span>' +
+        '</div>';
       p.samples.forEach(function (s) {
         h += '<div class="sample">' +
           '<div class="sample-col"><span>输入</span><pre>' + esc(s[0]) + '</pre></div>' +
           '<div class="sample-col"><span>输出</span><pre>' + esc(s[1]) + '</pre></div>' +
         '</div>';
       });
+      h += '<p class="sample-note">上表只是样例，提交时还会跑 ' + HIDDEN_CASES +
+        ' 组看不见的数据。把答案写死是过不了的。</p>';
       h += '</div>';
     }
     if (p.noteText) {
@@ -992,7 +1000,9 @@
     }
 
     if (sub.results && sub.results.length) {
-      h += '<div class="judge-sub">测试点</div><div class="case-list">';
+      var passed = sub.results.filter(function (r) { return r.status === 'accepted'; }).length;
+      h += '<div class="judge-sub">测试点 · 通过 ' + passed + ' / ' + sub.results.length + '</div>' +
+        '<div class="case-list">';
       sub.results.forEach(function (r) {
         var ok = r.status === 'accepted';
         h += '<div class="case-row">' +
@@ -1000,7 +1010,8 @@
           '<span class="jv ' + (ok ? 'ok' : 'err') + '">' + esc(STATUS_TEXT[r.status] || r.status) + '</span>' +
           '<span class="case-meta">' + r.time_ms + ' ms</span>' +
           '<span class="case-meta">' + r.score + ' 分</span>' +
-          (r.is_sample ? '<span class="case-meta">样例</span>' : '') +
+          '<span class="case-flag' + (r.is_sample ? ' sample' : '') + '">' +
+            (r.is_sample ? '样例' : '隐藏') + '</span>' +
         '</div>';
         if (!ok && r.is_sample && r.actual_excerpt) {
           h += '<div class="case-diff">' +
@@ -1010,6 +1021,10 @@
         }
       });
       h += '</div>';
+      if (passed < sub.results.length && passed > 0) {
+        h += '<p class="sample-note">只过了 ' + passed + ' 组，多半是只覆盖了样例。' +
+          '隐藏数据在边界、规模、极端输入上都会不同。</p>';
+      }
     }
 
     if (sub.judge_message && !pass) {
@@ -1177,7 +1192,7 @@
       var u = API.user();
       var initial = (u.display_name || u.username || '?').slice(0, 1).toUpperCase();
       box.innerHTML =
-        (API.isStaff() ? '<a class="ub-link" href="#/admin">后台</a>' : '') +
+        (API.isAdmin() ? '<a class="ub-link" href="#/admin">后台</a>' : '') +
         '<a class="ub-link" href="#/stats">统计</a>' +
         '<a class="ub-user" href="#/profile" title="' + esc(u.email) + '">' +
           '<span class="ub-avatar">' + esc(initial) + '</span>' +

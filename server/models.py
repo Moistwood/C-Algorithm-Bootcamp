@@ -39,11 +39,14 @@ def utcnow() -> datetime:
 
 
 class UserRole(str, enum.Enum):
-    """角色。权限体系中最粗的一层。"""
+    """角色。只有两级：站长与访客。
+
+    不再设 teacher 之类的中间角色 —— 多一级就要多一套对应的功能与界面，
+    没有真实使用方就不要留空壳。
+    """
 
     STUDENT = "student"   # 普通学员：学习、做题、讨论
-    TEACHER = "teacher"   # 教师：额外可查看班级统计、维护题库
-    ADMIN = "admin"       # 管理员：全部权限
+    ADMIN = "admin"       # 管理员：维护题库与用户
 
 
 class ProgressStatus(str, enum.Enum):
@@ -112,10 +115,6 @@ class User(Base):
     @property
     def is_admin(self) -> bool:
         return self.role == UserRole.ADMIN.value
-
-    @property
-    def is_staff(self) -> bool:
-        return self.role in (UserRole.ADMIN.value, UserRole.TEACHER.value)
 
 
 class AuditLog(Base):
